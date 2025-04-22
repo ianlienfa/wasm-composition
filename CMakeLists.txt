@@ -16,8 +16,8 @@ target_link_libraries(host "wasmer")
 # build wasm binary: now the global variable has to be exposed here...
 add_custom_command(TARGET host PRE_BUILD
   COMMAND ${CMAKE_COMMAND} -E echo "Building a.wasm"  
-  COMMAND /opt/wasi-sdk-25.0-arm64-linux/bin/clang++ ../src/a.cpp -o a.wasm
-  # COMMAND /opt/wasi-sdk-25.0-arm64-linux/bin/clang++ -Wl,--export=glob_int ../src/a.cpp -o a.wasm
+  # COMMAND /opt/wasi-sdk-25.0-arm64-linux/bin/clang++ ../src/a.cpp -o a.wasm
+  COMMAND /opt/wasi-sdk-25.0-arm64-linux/bin/clang++ -Wl,--export=glob_int ../src/a.cpp -o a.wasm
   COMMAND wasm2wat a.wasm -o a.wat
 )
 

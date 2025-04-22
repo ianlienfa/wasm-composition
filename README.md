@@ -3,3 +3,4 @@
 `wasmer run a.wasmu`
 `wasm-objdump -x a.wasm`
 `wasm2wat a.wasm -o a.wat`
+`wat2wasm a.wat -o a.wasm`
