@@ -29,11 +29,11 @@ wasm_trap_t* get_counter(void* env_arg, const wasm_val_vec_t* args, wasm_val_vec
   
 wasm_trap_t* add_to_counter(void* env_arg, const wasm_val_vec_t* args, wasm_val_vec_t* results) {
   Env* env = (Env*)env_arg;
-  // pthread_mutex_lock(&env->lock); // Lock before accessing counter
+  pthread_mutex_lock(&env->lock); // Lock before accessing counter
   int32_t add = args->data[0].of.i32;
   env->counter += add;
   results->data[0].of.i32 = env->counter;
-  // pthread_mutex_unlock(&env->lock); // Unlock afterward
+  pthread_mutex_unlock(&env->lock); // Unlock afterward
   return NULL;
 }
 
@@ -115,7 +115,9 @@ int main() {
 
   std::thread main_thread([&](){
     for(int i = 0; i < 50000; i++){
+      pthread_mutex_lock(&env_data.lock); // Lock before accessing counter
       env_data.counter++;
+      pthread_mutex_unlock(&env_data.lock); // Unlock afterward
     }
   });
 
