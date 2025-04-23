@@ -13,6 +13,10 @@ link_directories("/home/ian/.wasmer/lib")
 add_executable(host src/host.cpp)
 target_link_libraries(host "wasmer")
 
+add_executable(export_import src/export_import.cpp)
+target_link_libraries(export_import "wasmer")
+
+
 # build wasm binary: now the global variable has to be exposed here...
 add_custom_command(TARGET host PRE_BUILD
   COMMAND ${CMAKE_COMMAND} -E echo "Building a.wasm"  
