@@ -6,8 +6,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # include dir
-include_directories("/home/ian/.wasmer/include")
-link_directories("/home/ian/.wasmer/lib")
+# include_directories("/home/ian/.wasmer/include")
+# link_directories("/home/ian/.wasmer/lib")
+include_directories("/home/ian/wasmer/package/include") # self-compiled version
+link_directories("/home/ian/wasmer/package/lib") # self-compiled version
 
 # Add executable
 add_executable(host src/host.cpp)

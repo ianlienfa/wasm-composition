@@ -201,46 +201,6 @@ struct Wasm_Mod {
 };
 
 
-void export_smth(){
-      // Extract export.
-      // printf("Extracting export...\n");
-      // own wasm_extern_vec_t exports;
-      // wasm_instance_exports(instance, &exports);
-      // if (exports.size == 0) {
-      // printf("> Error accessing exports!\n");
-      // return 1;
-      // }
-      // fprintf(stderr, "found %zu exports\n", exports.size);
-  
-  
-      // if (exports.size == 0) {
-      //   printf("> Error accessing exports!\n");
-  
-      //   return 1;
-      // }
-  
-      // wasm_global_t* glob_int = wasm_extern_as_global(exports.data[2]);
-      // if (glob_int == NULL) {
-      //   printf("> Failed to get the `glob_int` global!\n");
-      //   return 1;
-      // }
-    
-      // wasm_globaltype_t* glob_int_type = wasm_global_type(glob_int);
-      // wasm_mutability_t glob_int_mutability = wasm_globaltype_mutability(glob_int_type);
-      // const wasm_valtype_t* glob_int_content = wasm_globaltype_content(glob_int_type);
-      // wasm_valkind_t glob_int_kind = wasm_valtype_kind(glob_int_content);
-  
-      // printf("`glob_int` type: %s %hhu\n", glob_int_mutability == WASM_CONST ? "const" : "", glob_int_kind);
-  
-      // wasm_val_t glob_int_set_value = WASM_I32_VAL(11);
-      // wasm_global_set(glob_int, &glob_int_set_value);
-  
-      // wasm_val_t glob_int_val;
-      // wasm_global_get(glob_int, &glob_int_val);
-      // printf("`glob_int_val` value: %d\n", glob_int_val.of.i32);
-  
-}
-
 typedef struct Env {
   int32_t counter;
   pthread_mutex_t lock;
@@ -257,7 +217,10 @@ typedef struct Env {
 
 wasm_trap_t* get_counter(void* env_arg, const wasm_val_vec_t* args, wasm_val_vec_t* results) {
 Env* env = (Env*)env_arg;
-results->data[0].of.i32 = env->counter;
+wasm_val_t val = WASM_I32_VAL(env->counter);
+wasm_val_copy(&results->data[0], &val);
+results->data[0] = val;
+wasm_val_delete(&val);
 printf("get_counter called, cur val: %d\n", env->counter);
 return NULL;
 }
@@ -267,7 +230,9 @@ Env* env = (Env*)env_arg;
 pthread_mutex_lock(&env->lock); // Lock before accessing counter
 int32_t add = args->data[0].of.i32;
 env->counter += add;
-results->data[0].of.i32 = env->counter;
+wasm_val_t val = WASM_I32_VAL(env->counter);
+wasm_val_copy(&results->data[0], &val);
+wasm_val_delete(&val);
 pthread_mutex_unlock(&env->lock); // Unlock afterward
 printf("add_to_counter called, cur val: %d\n", env->counter);
 return NULL;
@@ -326,20 +291,53 @@ int main(int argc, const char* argv[]) {
 
       // run a_get_counter      
       wasm_func_t* a_get_counter = a.wasmmod_get_export_func(2);
+      wasm_func_t* a_get_worker = a.wasmmod_get_export_func(1);
+      if(!a_get_worker){
+        printf("> failed retreiving `a_get_worker` function!\n");
+        return 1;
+      }
       if(!a_get_counter){
         printf("> failed retreiving `a_get_counter` function!\n");
         return 1;
       }
-      wasm_val_t results_val[1] = { WASM_INIT_VAL };
-      wasm_val_vec_t args = WASM_EMPTY_VEC;
-      wasm_val_vec_t results = WASM_ARRAY_VEC(results_val);
-      if (!wasm_func_call(a_get_counter, &args, &results)) {
-          printf("> Error calling the `a_get_counter` function!\n");
+      {  
+        // a_get_counter call
+        wasm_val_t results_val[1] = { WASM_INIT_VAL };
+        wasm_val_vec_t args = WASM_EMPTY_VEC;
+        wasm_val_vec_t results = WASM_ARRAY_VEC(results_val);
+        if (wasm_func_call(a_get_counter, &args, &results)) {
+            printf("> Error calling the `a_get_counter` function!\n");
+            return 1;
+        }
+        printf("Results of `a_get_counter`: %d\n", results_val[0].of.i32);
+        printf("Result of actual val: %d\n", env_data.counter);
+      }  
+      {
+        // a_get_worker call
+        wasm_val_t results_val[1] = { WASM_INIT_VAL };
+        wasm_val_vec_t args = WASM_EMPTY_VEC;
+        wasm_val_vec_t results = WASM_ARRAY_VEC(results_val);
+        if (wasm_func_call(a_get_worker, &args, &results)) {
+          print_wasmer_error();
+          printf("> Error calling the `a_get_worker` function!\n");
           return 1;
+        }
+        printf("Results of `a_get_worker`: %d\n", results_val[0].of.i32);
+        printf("Result of actual val: %d\n", env_data.counter);
       }
-      printf("Results of `a_get_counter`: %d\n", results_val[0].of.i32);
-      printf("Result of actual val: %d\n", env_data.counter);
-      
+      {  
+        // a_get_counter call
+        wasm_val_t results_val[1] = { WASM_INIT_VAL };
+        wasm_val_vec_t args = WASM_EMPTY_VEC;
+        wasm_val_vec_t results = WASM_ARRAY_VEC(results_val);
+        if (wasm_func_call(a_get_counter, &args, &results)) {
+            print_wasmer_error();
+            printf("> Error calling the `a_get_counter` function!\n");
+            return 1;
+        }
+        printf("Results of `a_get_counter`: %d\n", results_val[0].of.i32);
+        printf("Result of actual val: %d\n", env_data.counter);
+      }  
       // Shut down.
       if(engine)wasm_engine_delete(engine);
       printf("Shutting down...\n");
