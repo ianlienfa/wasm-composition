@@ -156,8 +156,6 @@ struct Wasm_Mod {
     wasm_byte_vec_t binary = load_wasm_binary(filepath);
     nowasi_wasmmod_load_module_from_bytes(&binary); // ownership trans
   }
-
-
   
   int wasmmod_run_start(){
     if(!instance){
@@ -181,6 +179,25 @@ struct Wasm_Mod {
     printf("===================Call completed===========================\n");
     return 0;
   }
+
+  // func/arg mem will automatically be cleaned up after call
+  wasm_func_t* wasmmod_get_export_func(int func_index, std::string func_name = ""){
+    wasm_instance_exports(instance, &exports);
+    if (exports.size == 0) {
+      printf("> Error accessing exports!\n");
+      return NULL;
+    }
+    printf("export size: %ld\n", exports.size);
+    printf("Retrieving function %s at index %d.\n", func_name.c_str(), func_index);
+
+    wasm_func_t* func = wasm_extern_as_func(exports.data[func_index]);
+    if (func == NULL) {
+        printf("> Failed to get the `%s` function!\n", func_name.c_str());
+        return NULL;
+    }
+    return func;
+  }
+
 };
 
 
@@ -223,14 +240,6 @@ void export_smth(){
       // printf("`glob_int_val` value: %d\n", glob_int_val.of.i32);
   
 }
-
-// void read_int(){
-//   printf("glob_int: %d\n", glob_int);
-// }
-
-// void write_int(int i){
-//   glob_int = i;
-// }
 
 typedef struct Env {
   int32_t counter;
@@ -313,39 +322,24 @@ int main(int argc, const char* argv[]) {
 
       // build instance with the newly populated import
       a.nowasi_wasmmod_build_instance(); 
-      // b.wasmmod_build_instance();
+      // b.nowasi_wasmmod_build_instance();
 
-      // run a_worker
-      wasm_instance_exports(a.instance, &a.exports);
-      if (a.exports.size == 0) {
-        printf("> Error accessing exports!\n");
+      // run a_get_counter      
+      wasm_func_t* a_get_counter = a.wasmmod_get_export_func(2);
+      if(!a_get_counter){
+        printf("> failed retreiving `a_get_counter` function!\n");
         return 1;
       }
-      printf("export size: %ld\n", a.exports.size);
-
-      printf("Retrieving the `sum` function...\n");
-      wasm_func_t* a_get_counter = wasm_extern_as_func(a.exports.data[2]);
-
-      if (a_get_counter == NULL) {
-          printf("> Failed to get the `a_get_counter` function!\n");
-          return 1;
-      }
-
-      printf("Calling `a_get_counter` function...\n");
       wasm_val_t results_val[1] = { WASM_INIT_VAL };
       wasm_val_vec_t args = WASM_EMPTY_VEC;
       wasm_val_vec_t results = WASM_ARRAY_VEC(results_val);
-    
       if (!wasm_func_call(a_get_counter, &args, &results)) {
           printf("> Error calling the `a_get_counter` function!\n");
           return 1;
       }
       printf("Results of `a_get_counter`: %d\n", results_val[0].of.i32);
       printf("Result of actual val: %d\n", env_data.counter);
-      // start      
-      // a.wasmmod_run_start();
-      // b.wasmmod_run_start();
-
+      
       // Shut down.
       if(engine)wasm_engine_delete(engine);
       printf("Shutting down...\n");
