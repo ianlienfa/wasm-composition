@@ -221,7 +221,6 @@ wasm_val_t val = WASM_I32_VAL(env->counter);
 wasm_val_copy(&results->data[0], &val);
 results->data[0] = val;
 wasm_val_delete(&val);
-// printf("get_counter called, cur val: %d\n", env->counter);
 return NULL;
 }
 
@@ -234,7 +233,6 @@ wasm_val_t val = WASM_I32_VAL(env->counter);
 wasm_val_copy(&results->data[0], &val);
 wasm_val_delete(&val);
 pthread_mutex_unlock(&env->lock); // Unlock afterward
-// printf("add_to_counter called, cur val: %d\n", env->counter);
 return NULL;
 }
 
