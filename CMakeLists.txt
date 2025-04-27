@@ -21,7 +21,9 @@ target_link_libraries(export_import "wasmer")
 add_custom_command(TARGET host PRE_BUILD
   COMMAND ${CMAKE_COMMAND} -E echo "Building a.wasm"  
   # COMMAND /opt/wasi-sdk-25.0-arm64-linux/bin/clang++ ../src/a.cpp -o a.wasm
-  COMMAND /opt/wasi-sdk-25.0-arm64-linux/bin/clang++ -Wl,--allow-undefined ../src/a.cpp -o a.wasm
+  # COMMAND /opt/wasi-sdk-25.0-arm64-linux/bin/clang++ -Wl,--allow-undefined ../src/a.cpp -o a.wasm
+  # COMMAND clang++ --target=wasm32 -Wl,--export-all -Wl,--allow-undefined -o a.wasm ../src/a.cpp
+  COMMAND em++ -std=c++20 -O2 -sSTANDALONE_WASM -Wl,--allow-undefined -Wl,--no-entry -o a.wasm ../src/a.cpp
   COMMAND wasm2wat a.wasm -o a.wat
 )
 

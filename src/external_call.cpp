@@ -184,54 +184,6 @@ struct Wasm_Mod {
 };
 
 
-void export_smth(){
-      // Extract export.
-      // printf("Extracting export...\n");
-      // own wasm_extern_vec_t exports;
-      // wasm_instance_exports(instance, &exports);
-      // if (exports.size == 0) {
-      // printf("> Error accessing exports!\n");
-      // return 1;
-      // }
-      // fprintf(stderr, "found %zu exports\n", exports.size);
-  
-  
-      // if (exports.size == 0) {
-      //   printf("> Error accessing exports!\n");
-  
-      //   return 1;
-      // }
-  
-      // wasm_global_t* glob_int = wasm_extern_as_global(exports.data[2]);
-      // if (glob_int == NULL) {
-      //   printf("> Failed to get the `glob_int` global!\n");
-      //   return 1;
-      // }
-    
-      // wasm_globaltype_t* glob_int_type = wasm_global_type(glob_int);
-      // wasm_mutability_t glob_int_mutability = wasm_globaltype_mutability(glob_int_type);
-      // const wasm_valtype_t* glob_int_content = wasm_globaltype_content(glob_int_type);
-      // wasm_valkind_t glob_int_kind = wasm_valtype_kind(glob_int_content);
-  
-      // printf("`glob_int` type: %s %hhu\n", glob_int_mutability == WASM_CONST ? "const" : "", glob_int_kind);
-  
-      // wasm_val_t glob_int_set_value = WASM_I32_VAL(11);
-      // wasm_global_set(glob_int, &glob_int_set_value);
-  
-      // wasm_val_t glob_int_val;
-      // wasm_global_get(glob_int, &glob_int_val);
-      // printf("`glob_int_val` value: %d\n", glob_int_val.of.i32);
-  
-}
-
-// void read_int(){
-//   printf("glob_int: %d\n", glob_int);
-// }
-
-// void write_int(int i){
-//   glob_int = i;
-// }
-
 typedef struct Env {
   int32_t counter;
   pthread_mutex_t lock;
@@ -275,12 +227,9 @@ int main(int argc, const char* argv[]) {
       // Initialize Wasm_Mod instances
       Wasm_Mod a("a", engine, false /*std_inherit*/);
       printf("a initialized.\n");
-      // Wasm_Mod b("b", engine, false /*std_inherit*/);
-      // printf("b initialized.\n");
             
       // load module
       a.wasmmod_load_module_from_file("./a.wasm");
-      // b.wasmmod_load_module_from_str("./b.wasm");
 
       // build env
       own Env env_data;
@@ -297,23 +246,13 @@ int main(int argc, const char* argv[]) {
         wasm_func_as_extern(get_counter_func_a)
       };
       a.imports = WASM_ARRAY_VEC(externs_a);
-    
-      // build import function instance for b
-      // own wasm_func_t* get_counter_func_b = wasm_func_new_with_env(b.store, get_counter_type, get_counter, &env_data, NULL);
-      // own wasm_func_t* add_to_counter_func_b = wasm_func_new_with_env(b.store, add_to_counter_type, add_to_counter, &env_data, NULL);
-      // wasm_extern_t* externs_b[] = {
-      //   wasm_func_as_extern(get_counter_func_b),
-      //   wasm_func_as_extern(add_to_counter_func_b)
-      // };
-      // b.imports = WASM_ARRAY_VEC(externs_b);
-
+          
       // post function instance build cleanup
       wasm_functype_delete(get_counter_type); // own wasm_func_t* get_counter_func
       wasm_functype_delete(add_to_counter_type); // own wasm_func_t* add_to_counter_func
 
       // build instance with the newly populated import
       a.nowasi_wasmmod_build_instance(); 
-      // b.wasmmod_build_instance();
 
       // run a_worker
       wasm_instance_exports(a.instance, &a.exports);
@@ -342,9 +281,6 @@ int main(int argc, const char* argv[]) {
       }
       printf("Results of `a_get_counter`: %d\n", results_val[0].of.i32);
       printf("Result of actual val: %d\n", env_data.counter);
-      // start      
-      // a.wasmmod_run_start();
-      // b.wasmmod_run_start();
 
       // Shut down.
       if(engine)wasm_engine_delete(engine);
