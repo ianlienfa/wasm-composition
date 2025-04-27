@@ -33,7 +33,8 @@ add_custom_command(TARGET host PRE_BUILD
 add_custom_command(TARGET host PRE_BUILD
   COMMAND ${CMAKE_COMMAND} -E echo "Building b.wasm"  
   # COMMAND /opt/wasi-sdk-25.0-arm64-linux/bin/clang++ ../src/a.cpp -o a.wasm
-  COMMAND /opt/wasi-sdk-25.0-arm64-linux/bin/clang++ -Wl,--allow-undefined ../src/b.cpp -o b.wasm
+  # COMMAND /opt/wasi-sdk-25.0-arm64-linux/bin/clang++ -Wl,--allow-undefined ../src/b.cpp -o b.wasm
+  COMMAND em++ -std=c++20 -O2 -sSTANDALONE_WASM -Wl,--allow-undefined -Wl,--no-entry -o b.wasm ../src/b.cpp
   COMMAND wasm2wat b.wasm -o b.wat
 )
 

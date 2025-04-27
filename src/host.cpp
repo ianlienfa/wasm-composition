@@ -206,7 +206,7 @@ typedef struct Env {
   pthread_mutex_t lock;
   
   Env(){
-    counter = 144;
+    counter = 0;
     pthread_mutex_init(&lock, NULL);
   }
 
@@ -221,7 +221,7 @@ wasm_val_t val = WASM_I32_VAL(env->counter);
 wasm_val_copy(&results->data[0], &val);
 results->data[0] = val;
 wasm_val_delete(&val);
-printf("get_counter called, cur val: %d\n", env->counter);
+// printf("get_counter called, cur val: %d\n", env->counter);
 return NULL;
 }
 
@@ -234,7 +234,7 @@ wasm_val_t val = WASM_I32_VAL(env->counter);
 wasm_val_copy(&results->data[0], &val);
 wasm_val_delete(&val);
 pthread_mutex_unlock(&env->lock); // Unlock afterward
-printf("add_to_counter called, cur val: %d\n", env->counter);
+// printf("add_to_counter called, cur val: %d\n", env->counter);
 return NULL;
 }
 
@@ -249,95 +249,96 @@ int main(int argc, const char* argv[]) {
       // Initialize Wasm_Mod instances
       Wasm_Mod a("a", engine, false /*std_inherit*/);
       printf("a initialized.\n");
-      // Wasm_Mod b("b", engine, false /*std_inherit*/);
-      // printf("b initialized.\n");
+      Wasm_Mod b("b", engine, false /*std_inherit*/);
+      printf("b initialized.\n");
             
       // load module
       a.wasmmod_load_module_from_file("./a.wasm");
-      // b.wasmmod_load_module_from_str("./b.wasm");
+      b.wasmmod_load_module_from_file("./b.wasm");
 
       // build env
       own Env env_data;
 
       // build function instance prep
-      own wasm_functype_t* get_counter_type = wasm_functype_new_0_1(wasm_valtype_new_i32());
+      // own wasm_functype_t* get_counter_type = wasm_functype_new_0_1(wasm_valtype_new_i32());
       own wasm_functype_t* add_to_counter_type = wasm_functype_new_1_1(wasm_valtype_new_i32(), wasm_valtype_new_i32());
 
       // build import function instance for a      
-      own wasm_func_t* get_counter_func_a = wasm_func_new_with_env(a.store, get_counter_type, get_counter, &env_data, NULL);
+      // own wasm_func_t* get_counter_func_a = wasm_func_new_with_env(a.store, get_counter_type, get_counter, &env_data, NULL);
       own wasm_func_t* add_to_counter_func_a = wasm_func_new_with_env(a.store, add_to_counter_type, add_to_counter, &env_data, NULL);
       wasm_extern_t* externs_a[] = {
         wasm_func_as_extern(add_to_counter_func_a),
-        wasm_func_as_extern(get_counter_func_a)
+        // wasm_func_as_extern(get_counter_func_a)
       };
       a.imports = WASM_ARRAY_VEC(externs_a);
     
       // build import function instance for b
       // own wasm_func_t* get_counter_func_b = wasm_func_new_with_env(b.store, get_counter_type, get_counter, &env_data, NULL);
-      // own wasm_func_t* add_to_counter_func_b = wasm_func_new_with_env(b.store, add_to_counter_type, add_to_counter, &env_data, NULL);
-      // wasm_extern_t* externs_b[] = {
-      //   wasm_func_as_extern(get_counter_func_b),
-      //   wasm_func_as_extern(add_to_counter_func_b)
-      // };
-      // b.imports = WASM_ARRAY_VEC(externs_b);
+      own wasm_func_t* add_to_counter_func_b = wasm_func_new_with_env(b.store, add_to_counter_type, add_to_counter, &env_data, NULL);
+      wasm_extern_t* externs_b[] = {
+        // wasm_func_as_extern(get_counter_func_b),
+        wasm_func_as_extern(add_to_counter_func_b)
+      };
+      b.imports = WASM_ARRAY_VEC(externs_b);
 
       // post function instance build cleanup
-      wasm_functype_delete(get_counter_type); // own wasm_func_t* get_counter_func
+      // wasm_functype_delete(get_counter_type); // own wasm_func_t* get_counter_func
       wasm_functype_delete(add_to_counter_type); // own wasm_func_t* add_to_counter_func
 
       // build instance with the newly populated import
       a.nowasi_wasmmod_build_instance(); 
-      // b.nowasi_wasmmod_build_instance();
+      b.nowasi_wasmmod_build_instance();
 
-      // run a_get_counter      
-      wasm_func_t* a_get_counter = a.wasmmod_get_export_func(2);
+      // prep a_get_worker      
+      // wasm_func_t* a_get_counter = a.wasmmod_get_export_func(2);
       wasm_func_t* a_get_worker = a.wasmmod_get_export_func(1);
       if(!a_get_worker){
         printf("> failed retreiving `a_get_worker` function!\n");
         return 1;
       }
-      if(!a_get_counter){
-        printf("> failed retreiving `a_get_counter` function!\n");
+      // if(!a_get_counter){
+      //   printf("> failed retreiving `a_get_counter` function!\n");
+      //   return 1;
+      // }
+
+      // prep b_get_worker
+      wasm_func_t* b_get_worker = b.wasmmod_get_export_func(1);
+      if(!b_get_worker){
+        printf("> failed retreiving `b_get_worker` function!\n");
         return 1;
       }
-      {  
-        // a_get_counter call
-        wasm_val_t results_val[1] = { WASM_INIT_VAL };
-        wasm_val_vec_t args = WASM_EMPTY_VEC;
-        wasm_val_vec_t results = WASM_ARRAY_VEC(results_val);
-        if (wasm_func_call(a_get_counter, &args, &results)) {
-            printf("> Error calling the `a_get_counter` function!\n");
-            return 1;
-        }
-        printf("Results of `a_get_counter`: %d\n", results_val[0].of.i32);
-        printf("Result of actual val: %d\n", env_data.counter);
-      }  
+
+      std::thread a_worker([&]()
       {
-        // a_get_worker call
-        wasm_val_t results_val[1] = { WASM_INIT_VAL };
-        wasm_val_vec_t args = WASM_EMPTY_VEC;
-        wasm_val_vec_t results = WASM_ARRAY_VEC(results_val);
-        if (wasm_func_call(a_get_worker, &args, &results)) {
-          print_wasmer_error();
-          printf("> Error calling the `a_get_worker` function!\n");
-          return 1;
-        }
-        printf("Results of `a_get_worker`: %d\n", results_val[0].of.i32);
-        printf("Result of actual val: %d\n", env_data.counter);
-      }
-      {  
-        // a_get_counter call
-        wasm_val_t results_val[1] = { WASM_INIT_VAL };
-        wasm_val_vec_t args = WASM_EMPTY_VEC;
-        wasm_val_vec_t results = WASM_ARRAY_VEC(results_val);
-        if (wasm_func_call(a_get_counter, &args, &results)) {
+          // a_get_worker call
+          wasm_val_t results_val[1] = { WASM_INIT_VAL };
+          wasm_val_vec_t args = WASM_EMPTY_VEC;
+          wasm_val_vec_t results = WASM_ARRAY_VEC(results_val);
+          if (wasm_func_call(a_get_worker, &args, &results)) {
             print_wasmer_error();
-            printf("> Error calling the `a_get_counter` function!\n");
-            return 1;
+            printf("> Error calling the `a_get_worker` function!\n");            
+          }
+          printf("Results of `a_get_worker`: %d\n", results_val[0].of.i32);
+          printf("Result of actual val: %d\n", env_data.counter);
+      });
+
+      std::thread b_worker([&]()
+      {
+        // b_get_worker call
+        wasm_val_t results_val[1] = { WASM_INIT_VAL };
+        wasm_val_vec_t args = WASM_EMPTY_VEC;
+        wasm_val_vec_t results = WASM_ARRAY_VEC(results_val);
+        if (wasm_func_call(b_get_worker, &args, &results)) {
+          print_wasmer_error();
+          printf("> Error calling the `b_get_worker` function!\n");
         }
-        printf("Results of `a_get_counter`: %d\n", results_val[0].of.i32);
+        printf("Results of `b_get_worker`: %d\n", results_val[0].of.i32);
         printf("Result of actual val: %d\n", env_data.counter);
-      }  
+      });
+
+      a_worker.join();
+      b_worker.join();
+
       // Shut down.
       if(engine)wasm_engine_delete(engine);
       printf("Shutting down...\n");
