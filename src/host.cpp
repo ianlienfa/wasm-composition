@@ -51,8 +51,7 @@ struct Wasm_Mod {
     if(module)wasm_module_delete(module);
     if(instance)wasm_instance_delete(instance);
     if(store)wasm_store_delete(store);
-    if(exports.size)wasm_extern_vec_delete(&exports);
-    if(imports.size)wasm_extern_vec_delete(&imports);
+    if(exports.size)wasm_extern_vec_delete(&exports);    
     for(auto f: func_exposed){
       wasm_func_delete(f);
     }
@@ -79,6 +78,10 @@ struct Wasm_Mod {
   }
   
   void wasmmod_build_instance(){
+    if (!wasi_get_imports(store, wasi_env, module, &imports)) {
+      print_wasmer_error();
+      throw std::runtime_error("> Error getting WASI imports!\n");
+      }
     own instance =
       wasm_instance_new(store, module, &imports, NULL);
     if (!instance) {
@@ -114,10 +117,6 @@ struct Wasm_Mod {
       if(!wasi_env) throw std::runtime_error("> wasi_env is NULL!\n");
       if(!store) throw std::runtime_error("> store is NULL!\n");
     }
-    if (!wasi_get_imports(store, wasi_env, module, &imports)) {
-      print_wasmer_error();
-      throw std::runtime_error("> Error getting WASI imports!\n");
-      }
   }
 
   void wasmmod_load_module_from_str(const char* wat_string){
@@ -207,22 +206,38 @@ void export_smth(){
 //   glob_int = i;
 // }
 
-int main(int argc, const char* argv[]) {
-    const char* wat_string =
-        "(module\n"
-        "  (func $get_counter (import \"env\" \"get_counter\") (result i32))\n"
-        "  (func $add_to_counter (import \"env\" \"add_to_counter\") (param i32) (result i32))\n"
-        "  (type $increment_t (func (param i32) (result i32)))\n"
-        "  (func $increment_f (type $increment_t) (param $x i32) (result i32)\n"
-        "    (block\n"
-        "      (loop\n"
-        "        (call $add_to_counter (i32.const 1))\n"
-        "        (local.set $x (i32.sub (local.get $x) (i32.const 1)))\n"
-        "        (br_if 1 (i32.eq (local.get $x) (i32.const 0)))\n"
-        "        (br 0)))\n"
-        "    call $get_counter)\n"
-        "  (export \"increment_counter_loop\" (func $increment_f)))";
+typedef struct Env {
+  int32_t counter;
+  pthread_mutex_t lock;
+  
+  Env(){
+    counter = 0;
+    pthread_mutex_init(&lock, NULL);
+  }
 
+  ~Env(){
+    pthread_mutex_destroy(&lock);
+  }
+} Env;
+
+wasm_trap_t* get_counter(void* env_arg, const wasm_val_vec_t* args, wasm_val_vec_t* results) {
+Env* env = (Env*)env_arg;
+results->data[0].of.i32 = env->counter;
+return NULL;
+}
+
+wasm_trap_t* add_to_counter(void* env_arg, const wasm_val_vec_t* args, wasm_val_vec_t* results) {
+Env* env = (Env*)env_arg;
+pthread_mutex_lock(&env->lock); // Lock before accessing counter
+int32_t add = args->data[0].of.i32;
+env->counter += add;
+results->data[0].of.i32 = env->counter;
+pthread_mutex_unlock(&env->lock); // Unlock afterward
+return NULL;
+}
+
+
+int main(int argc, const char* argv[]) {
     // start wasm
     {
       // Initialize.
@@ -232,16 +247,49 @@ int main(int argc, const char* argv[]) {
       // Initialize Wasm_Mod instances
       Wasm_Mod a("a", engine, false /*std_inherit*/);
       printf("a initialized.\n");
-      Wasm_Mod b("b", engine, false /*std_inherit*/);
-      printf("b initialized.\n");
+      // Wasm_Mod b("b", engine, false /*std_inherit*/);
+      // printf("b initialized.\n");
             
-      a.wasmmod_load_module_from_str(wat_string);
-      a.wasmmod_build_instance(); 
-      b.wasmmod_load_module_from_str(wat_string);
-      b.wasmmod_build_instance();
+      // load module
+      a.wasmmod_load_module_from_file("./a.wasm");
+      // b.wasmmod_load_module_from_str("./b.wasm");
 
+      // build env
+      // own Env env_data;
+
+      // // build function instance prep
+      // own wasm_functype_t* get_counter_type = wasm_functype_new_0_1(wasm_valtype_new_i32());
+      // own wasm_functype_t* add_to_counter_type = wasm_functype_new_1_1(wasm_valtype_new_i32(), wasm_valtype_new_i32());
+
+      // // build import function instance for a      
+      // own wasm_func_t* get_counter_func_a = wasm_func_new_with_env(a.store, get_counter_type, get_counter, &env_data, NULL);
+      // own wasm_func_t* add_to_counter_func_a = wasm_func_new_with_env(a.store, add_to_counter_type, add_to_counter, &env_data, NULL);
+      // wasm_extern_t* externs_a[] = {
+      //   wasm_func_as_extern(get_counter_func_a),
+      //   wasm_func_as_extern(add_to_counter_func_a)
+      // };
+      // a.imports = WASM_ARRAY_VEC(externs_a);
+    
+      // build import function instance for b
+      // own wasm_func_t* get_counter_func_b = wasm_func_new_with_env(b.store, get_counter_type, get_counter, &env_data, NULL);
+      // own wasm_func_t* add_to_counter_func_b = wasm_func_new_with_env(b.store, add_to_counter_type, add_to_counter, &env_data, NULL);
+      // wasm_extern_t* externs_b[] = {
+      //   wasm_func_as_extern(get_counter_func_b),
+      //   wasm_func_as_extern(add_to_counter_func_b)
+      // };
+      // b.imports = WASM_ARRAY_VEC(externs_b);
+
+      // post function instance build cleanup
+      // wasm_functype_delete(get_counter_type); // own wasm_func_t* get_counter_func
+      // wasm_functype_delete(add_to_counter_type); // own wasm_func_t* add_to_counter_func
+
+      // build instance with the newly populated import
+      a.wasmmod_build_instance(); 
+      // b.wasmmod_build_instance();
+
+      // start
       a.wasmmod_run_start();
-      b.wasmmod_run_start();
+      // b.wasmmod_run_start();
 
       // Shut down.
       if(engine)wasm_engine_delete(engine);

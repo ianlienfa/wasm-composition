@@ -70,10 +70,10 @@ int main() {
   }
   wasm_byte_vec_delete(&wasm_bytes); // own wasm_byte_vec_t wasm_bytes
 
-  // // Set up the environment
+  // Set up the environment
   own Env env_data;
 
-  // // Creating import function 
+  // Creating import function 
   own wasm_functype_t* get_counter_type = wasm_functype_new_0_1(wasm_valtype_new_i32());
   own wasm_functype_t* add_to_counter_type = wasm_functype_new_1_1(wasm_valtype_new_i32(), wasm_valtype_new_i32());
 

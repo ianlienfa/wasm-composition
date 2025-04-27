@@ -2,17 +2,25 @@
 #include <unistd.h>
 using namespace std;
 
-extern "C" __attribute__((used, visibility("default"))) volatile int glob_int = 42;
+#ifdef __cplusplus
+extern "C" {  // Prevent name mangling for C++ code
+#endif
 
-void modify_glob(){
-    for(int i = 10; i >= 0; i--){
-        sleep(1);
-        glob_int--;
-    }
-}
+__attribute__((used, visibility("default"))) volatile int glob_int = 42;
+int get_counter();
+int add_to_counter(int i);
+
+
+#ifdef __cplusplus
+}  // End extern "C" block
+#endif
 
 int main(){
-    cout << "wasm test!" << endl;
-    modify_glob();
+    for(int i = 0; i < 10; i++){
+        sleep(1);
+        printf("[b]: try to add counter!\n");
+        int cur = add_to_counter(1);
+        printf("[b]: added! cur val: %d\n", cur);
+    }
 }
 
