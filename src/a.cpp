@@ -1,6 +1,6 @@
 // #include <unistd.h>
 // using namespace std;
-
+#include <stdlib.h>
 #ifdef __cplusplus
 extern "C" {  // Prevent name mangling for C++ code
 #endif
@@ -15,11 +15,13 @@ __attribute__((used, visibility("default"))) int a_get_worker();
 #endif
 
 int a_get_worker(){
-    int cur = 0;
+    int* cur = (int*)(malloc(sizeof(int)));
     for(int i = 0; i < 50000; i++){        
-        cur = add_to_counter(1);
+        *cur = add_to_counter(1);
     }
-    return cur;
+    int c = *cur;
+    free(cur);
+    return c;
 }
 
 // int a_get_counter(){
