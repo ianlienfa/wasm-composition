@@ -29,6 +29,7 @@ struct Wasm_Mod {
   wasm_instance_t* instance = nullptr;
   wasm_extern_vec_t imports;
   wasm_extern_vec_t exports;
+  wasm_exporttype_vec_t export_types;
   std::vector<wasm_func_t*> func_exposed;
   std::string mod_name;
 
@@ -37,6 +38,7 @@ struct Wasm_Mod {
   {    
     wasm_extern_vec_new_empty(&imports);
     wasm_extern_vec_new_empty(&exports);
+    wasm_exporttype_vec_new_empty(&export_types);
     store = wasm_store_new(engine);
     config = wasi_config_new(mod_name.c_str());
     if(std_inherit){
@@ -51,7 +53,8 @@ struct Wasm_Mod {
     if(module)wasm_module_delete(module);
     if(instance)wasm_instance_delete(instance);
     if(store)wasm_store_delete(store);
-    if(exports.size)wasm_extern_vec_delete(&exports);    
+    if(exports.size)wasm_extern_vec_delete(&exports);
+    if(export_types.size)wasm_exporttype_vec_delete(&export_types);    
     for(auto f: func_exposed){
       wasm_func_delete(f);
     }
@@ -141,6 +144,9 @@ struct Wasm_Mod {
       if(!module) throw std::runtime_error("> module is NULL!\n");
       if(!store) throw std::runtime_error("> store is NULL!\n");
     }
+
+    // populate export types
+    wasm_module_exports(module, &export_types);
   }
 
   void wasmmod_load_module_from_str(const char* wat_string){
@@ -198,6 +204,46 @@ struct Wasm_Mod {
     return func;
   }
 
+  const wasm_name_t* wasmmod_get_export_name(int func_index){
+    if (export_types.size == 0) {
+      printf("> Error accessing exports!\n, call nowasi_wasmmod_load_module_from_bytes before processing name!");
+      return NULL;
+    }
+    printf("export_types size: %ld\n", exports.size);
+
+    wasm_exporttype_t* export_type = export_types.data[func_index];
+    if (export_type == NULL) {
+      printf("> Failed to get the export_type at index %d!\n", func_index);
+      return NULL;
+    }
+    
+    const wasm_name_t* export_name = wasm_exporttype_name(export_type);
+    if (export_name == NULL) {
+        printf("> Failed to get the name at %d!\n", func_index);
+        return NULL;
+    }
+    return export_name;
+  }
+
+  const wasm_externtype_t* wasmmod_get_export_type(int func_index){
+    if (export_types.size == 0) {
+      printf("> Error accessing exports!\n, call nowasi_wasmmod_load_module_from_bytes before processing name!");
+      return NULL;
+    }
+    printf("export_types size: %ld\n", exports.size);
+
+    wasm_exporttype_t* export_type = export_types.data[func_index];
+    if (export_type == NULL) {
+      printf("> Failed to get the export_type at index %d!\n", func_index);
+      return NULL;
+    }
+    const wasm_externtype_t* extern_type = wasm_exporttype_type(export_type);
+    if (extern_type == NULL) {
+        printf("> Failed to get the type at %d!\n", func_index);
+        return NULL;
+    }
+    return extern_type;
+  }
 };
 
 
@@ -290,10 +336,55 @@ int main(int argc, const char* argv[]) {
       // prep a_get_worker      
       // wasm_func_t* a_get_counter = a.wasmmod_get_export_func(2);
       wasm_func_t* a_get_worker = a.wasmmod_get_export_func(1);
+      const wasm_name_t* a_export_name_1 = a.wasmmod_get_export_name(1);
+      printf("function name: %s\n", a_export_name_1->data);
       if(!a_get_worker){
         printf("> failed retreiving `a_get_worker` function!\n");
         return 1;
       }
+
+      // prep a_append_hello
+      wasm_func_t* a_append_hello = a.wasmmod_get_export_func(2);
+      const wasm_name_t* a_export_name_2 = a.wasmmod_get_export_name(2);
+      printf("function name: %s\n", a_export_name_2->data);
+      if(!a_append_hello){
+        printf("> failed retreiving `a_append_hello` function!\n");
+        return 1;
+      }
+      
+      {
+        // a_append_hello call
+        wasm_memory_t* memory = wasm_extern_as_memory(a.exports.data[0]);
+        if (memory == NULL) {
+          printf("> Failed to get the exported memory!\n");
+  
+          return 1;
+        }
+        printf("Got the exported memory: %p\n", memory);  
+        printf("Querying memory size...\n");
+        wasm_memory_pages_t pages = wasm_memory_size(memory);        
+        size_t data_size = wasm_memory_data_size(memory);
+        printf("Memory size (pages): %d\n", pages);
+        printf("Memory size (bytes): %d\n", (int) data_size);
+        wasm_byte_t* memory_data_offset = wasm_memory_data(memory);
+    
+        int offset = 1024;
+        const char* host_string = "hey";
+        printf("%s\n", host_string);
+        strcpy((char*)(wasm_memory_data(memory) + offset), host_string);
+        printf("[%p]: %s", wasm_memory_data(memory) + offset, wasm_memory_data(memory) + offset);
+        
+        wasm_val_t results_val[1] = { WASM_INIT_VAL };
+        wasm_val_t args_val[1] = { WASM_I32_VAL((int32_t)offset) };        wasm_val_vec_t args = WASM_ARRAY_VEC(args_val);
+        wasm_val_vec_t results = WASM_ARRAY_VEC(results_val);
+        if (wasm_func_call(a_append_hello, &args, &results)) {
+          print_wasmer_error();
+          printf("> Error calling the `a_append_hello` function!\n");            
+        }
+        printf("Results of `a_append_hello`: %s\n", (wasm_memory_data(memory) + results_val[0].of.i32));                
+      }
+
+
       // if(!a_get_counter){
       //   printf("> failed retreiving `a_get_counter` function!\n");
       //   return 1;
