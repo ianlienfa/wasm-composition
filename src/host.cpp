@@ -30,6 +30,7 @@ struct Wasm_Mod {
   wasm_extern_vec_t imports;
   wasm_extern_vec_t exports;
   wasm_exporttype_vec_t export_types;
+  wasm_memory_t* memory;
   std::vector<wasm_func_t*> func_exposed;
   std::string mod_name;
 
@@ -95,6 +96,17 @@ struct Wasm_Mod {
       print_wasmer_error();
       throw std::runtime_error("> Error initializing wasi env memory!\n");
       }
+    
+    // process export
+    wasm_instance_exports(instance, &exports);
+      if (exports.size == 0) {
+        printf("> Error accessing exports!\n");
+      }
+    printf("export size: %ld\n", exports.size);
+    if (!wasm_extern_as_memory(exports.data[0])) {
+      printf("> Error accessing memory export %u!\n", 0);
+    }
+    memory = wasm_extern_as_memory(exports.data[0]); // get memory
   } 
 
   void nowasi_wasmmod_build_instance(){
@@ -104,6 +116,16 @@ struct Wasm_Mod {
       throw std::runtime_error("> Error instantiating module!\n");
       print_wasmer_error();
       }
+    // process export
+    wasm_instance_exports(instance, &exports);
+      if (exports.size == 0) {
+        printf("> Error accessing exports!\n");
+      }
+    printf("export size: %ld\n", exports.size);
+    if (!wasm_extern_as_memory(exports.data[0])) {
+      printf("> Error accessing memory export %u!\n", 0);
+    }
+    memory = wasm_extern_as_memory(exports.data[0]); // get memory
   } 
 
   // this deletes the binary vec 
@@ -147,6 +169,8 @@ struct Wasm_Mod {
 
     // populate export types
     wasm_module_exports(module, &export_types);
+
+    
   }
 
   void wasmmod_load_module_from_str(const char* wat_string){
@@ -188,12 +212,6 @@ struct Wasm_Mod {
 
   // func/arg mem will automatically be cleaned up after call
   wasm_func_t* wasmmod_get_export_func(int func_index, std::string func_name = ""){
-    wasm_instance_exports(instance, &exports);
-    if (exports.size == 0) {
-      printf("> Error accessing exports!\n");
-      return NULL;
-    }
-    printf("export size: %ld\n", exports.size);
     printf("Retrieving function %s at index %d.\n", func_name.c_str(), func_index);
 
     wasm_func_t* func = wasm_extern_as_func(exports.data[func_index]);
@@ -243,6 +261,11 @@ struct Wasm_Mod {
         return NULL;
     }
     return extern_type;
+  }
+
+  // get current memory offset
+  byte_t * wassmod_get_mem(){
+    return wasm_memory_data(memory);
   }
 };
 
@@ -354,34 +377,25 @@ int main(int argc, const char* argv[]) {
       
       {
         // a_append_hello call
-        wasm_memory_t* memory = wasm_extern_as_memory(a.exports.data[0]);
-        if (memory == NULL) {
-          printf("> Failed to get the exported memory!\n");
-  
-          return 1;
-        }
-        printf("Got the exported memory: %p\n", memory);  
-        printf("Querying memory size...\n");
-        wasm_memory_pages_t pages = wasm_memory_size(memory);        
-        size_t data_size = wasm_memory_data_size(memory);
-        printf("Memory size (pages): %d\n", pages);
-        printf("Memory size (bytes): %d\n", (int) data_size);
-        wasm_byte_t* memory_data_offset = wasm_memory_data(memory);
-    
+        wasm_byte_t* memory_data_offset = a.wassmod_get_mem();
         int offset = 1024;
         const char* host_string = "hey";
+        memset(memory_data_offset + offset, 0, 100); // make sure the memory is clean
         printf("%s\n", host_string);
-        strcpy((char*)(wasm_memory_data(memory) + offset), host_string);
-        printf("[%p]: %s", wasm_memory_data(memory) + offset, wasm_memory_data(memory) + offset);
+        strcpy((char*)(memory_data_offset + offset), host_string);
+        printf("[%p]: %s\n", memory_data_offset + offset, memory_data_offset + offset);
         
         wasm_val_t results_val[1] = { WASM_INIT_VAL };
-        wasm_val_t args_val[1] = { WASM_I32_VAL((int32_t)offset) };        wasm_val_vec_t args = WASM_ARRAY_VEC(args_val);
+        wasm_val_t args_val[1] = { WASM_I32_VAL((int32_t)offset) };        
+        wasm_val_vec_t args = WASM_ARRAY_VEC(args_val);
         wasm_val_vec_t results = WASM_ARRAY_VEC(results_val);
         if (wasm_func_call(a_append_hello, &args, &results)) {
           print_wasmer_error();
           printf("> Error calling the `a_append_hello` function!\n");            
         }
-        printf("Results of `a_append_hello`: %s\n", (wasm_memory_data(memory) + results_val[0].of.i32));                
+        printf("Results of `a_append_hello`: %s\n", (memory_data_offset + results_val[0].of.i32));                
+        printf("Results at offset: %d\n", (results_val[0].of.i32));                
+
       }
 
 

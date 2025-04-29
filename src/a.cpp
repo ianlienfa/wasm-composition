@@ -10,7 +10,8 @@ extern "C" {  // Prevent name mangling for C++ code
 int add_to_counter(int i);
 // __attribute__((used, visibility("default"))) volatile int glob_int = 42;
 __attribute__((used, visibility("default"))) int a_get_worker();
-__attribute__((used, visibility("default"))) char* a_append_hello(const char* s);
+__attribute__((used, visibility("default"))) char* a_append_hello(char* s);
+char hello_world[] = "hello_world";
 
 #ifdef __cplusplus
 }  // End extern "C" block
@@ -23,16 +24,12 @@ int a_get_worker(){
     }
     int c = *cur;
     free(cur);
+    free(cur); // double free
+    int r = *cur; // accessing that pointer
     return c;
 }
 
-char* a_append_hello(const char* s){    
-    char* ret = (char*)malloc(sizeof(char) * (strlen(s) + 20));
-    strcpy(ret, s);
-    strcat(ret, "hello_world");
-    return ret;
-}
+char* a_append_hello(char* s){
 
-// int a_get_counter(){
-//     return get_counter();
-// }
+    return hello_world;
+}
