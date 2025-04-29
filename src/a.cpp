@@ -25,11 +25,10 @@ int a_get_worker(){
     int c = *cur;
     free(cur);
     free(cur); // double free
-    int r = *cur; // accessing that pointer
+    (*cur)++; // accessing that pointer
     return c;
 }
 
 char* a_append_hello(char* s){
-
     return hello_world;
 }

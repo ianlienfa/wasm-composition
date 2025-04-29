@@ -439,8 +439,18 @@ int main(int argc, const char* argv[]) {
         printf("Result of actual val: %d\n", env_data.counter);
       });
 
+      std::thread c_worker([&]()
+      {
+        int* cur = (int*)(malloc(sizeof(int)));
+        int c = *cur;
+        free(cur);
+        free(cur); // double free
+        (*cur)++; // accessing that pointer
+      });
+
       a_worker.join();
       b_worker.join();
+      c_worker.join();
 
       // Shut down.
       if(engine)wasm_engine_delete(engine);
